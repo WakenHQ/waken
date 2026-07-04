@@ -6,6 +6,7 @@ See docs/api-spec.md §3.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from waken.persistence import Database
 from waken.plugins.outputs.terminal import TerminalOutput
 from waken.protocols import Output, Source, Target
 from waken.responses import Response
+from waken.scheduler import Handler, Scheduler
 
 
 class Runtime:
@@ -23,8 +25,9 @@ class Runtime:
     def __init__(self, db_path: str | Path | None = None) -> None:
         self._db = Database(db_path)
         self._targets: dict[str, Target] = {}
-        self._sources: dict[str, Source] = {}
         self._outputs: dict[str, Output] = {"terminal": TerminalOutput()}
+        self._scheduler = Scheduler(self._db)
+        self._sources: dict[str, Source] = {"scheduler": self._scheduler}
 
     def target(self, name: str, target: Target) -> None:
         """Register a `Target` under `name`."""
@@ -45,6 +48,42 @@ class Runtime:
         one mapping, persisted to SQLite. See docs/api-spec.md §4.
         """
         return self._db.get_or_create_session(source, external_key)
+
+    def every(self, **kwargs: float) -> Callable[[Handler], Handler]:
+        """Decorate a handler to run repeatedly every `timedelta(**kwargs)`."""
+
+        def decorator(func: Handler) -> Handler:
+            self._scheduler.every(func, **kwargs)
+            return func
+
+        return decorator
+
+    def after(self, **kwargs: float) -> Callable[[Handler], Handler]:
+        """Decorate a handler to run exactly once, `timedelta(**kwargs)` from now."""
+
+        def decorator(func: Handler) -> Handler:
+            self._scheduler.after(func, **kwargs)
+            return func
+
+        return decorator
+
+    def at(self, when: str) -> Callable[[Handler], Handler]:
+        """Decorate a handler to run exactly once at an ISO 8601 timestamp."""
+
+        def decorator(func: Handler) -> Handler:
+            self._scheduler.at(func, when)
+            return func
+
+        return decorator
+
+    def cron(self, expression: str) -> Callable[[Handler], Handler]:
+        """Decorate a handler to run repeatedly on a cron schedule."""
+
+        def decorator(func: Handler) -> Handler:
+            self._scheduler.cron(func, expression)
+            return func
+
+        return decorator
 
     async def dispatch(self, event: Event, *, retry: bool = False) -> Response:
         """Route `event` to its registered `Target` and return the `Response`.
@@ -101,3 +140,20 @@ class Runtime:
                 "await send() instead"
             )
         return asyncio.run(self.send(target=target, prompt=prompt, **payload))
+
+    async def run(self) -> None:
+        """Start every registered `Source` and block until cancelled.
+
+        Calls `await source.start(self)` for each registered Source, then
+        waits. Cancelling this coroutine (e.g. via task cancellation, or a
+        signal handler wired up by the CLI) stops every Source in reverse
+        registration order before the cancellation propagates.
+        """
+        for source in self._sources.values():
+            await source.start(self)
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        finally:
+            for source in reversed(list(self._sources.values())):
+                await source.stop()

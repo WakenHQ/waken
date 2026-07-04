@@ -237,7 +237,7 @@ explicitly calls `runtime.send(...)` again.
 
 ### Scheduling
 
-Scheduling is a `Source` (`waken.plugins.sources.Scheduler`) that the `Runtime`
+Scheduling is a `Source` (`waken.scheduler.Scheduler`) that the `Runtime`
 registers by default under the name `"scheduler"`. Four decorators are sugar
 over it:
 

@@ -110,12 +110,22 @@ schedule, and retry — which is the line this project draws on purpose.
 
 Sources, Targets, and Outputs are all the same shape: a small protocol plus a
 name. There is no separate "plugin system" API distinct from
-`runtime.source/target/output`. Built-in Sources/Outputs (CLI, HTTP, filesystem,
-scheduler, webhook / terminal, notifications) live in `waken.plugins.*` and are
-registered the same way a user's own would be — the core does not special-case
-them. This is the test for whether the plugin system is minimal enough: if the
-built-ins need a private API the public plugin author can't reach, the design
-has failed.
+`runtime.source/target/output`. Built-in Sources/Outputs (CLI, HTTP,
+filesystem, webhook / terminal, notifications) live in `waken.plugins.*` and
+are registered the same way a user's own would be — the core does not
+special-case them. This is the test for whether the plugin system is minimal
+enough: if the built-ins need a private API the public plugin author can't
+reach, the design has failed.
+
+`Scheduler` (`waken.scheduler.Scheduler`) is the one exception, and lives at
+the top level alongside `router.py`/`persistence.py` rather than under
+`waken.plugins.sources`: it's not a swappable third-party integration the way
+Filesystem or Webhook are, it's the thing `runtime.every/after/at/cron` are
+sugar over, and it shares the `jobs` table with the rest of core persistence.
+It still satisfies the plain `Source` protocol and is registered through the
+same `runtime.source()` call as everything else — the exception is about
+which directory the file lives in, not about a second registration
+mechanism.
 
 ### HTTP server and CLI are thin wrappers, not new surfaces
 
