@@ -18,7 +18,7 @@ from typing import Any
 
 from waken import router
 from waken.events import Event
-from waken.exceptions import OutputNotFoundError, TargetNotFoundError
+from waken.exceptions import OutputNotFoundError, TargetNotFoundError, WakenError
 from waken.persistence import Database
 from waken.plugins.outputs.terminal import TerminalOutput
 from waken.plugins.sources.http import HTTPSource
@@ -198,6 +198,30 @@ class Runtime:
                 "await send() instead"
             )
         return asyncio.run(self.send(target=target, prompt=prompt, **payload))
+
+    async def broadcast(self, *, prompt: str, **payload: Any) -> dict[str, Response]:
+        """Send `prompt` to every registered target concurrently.
+
+        A target that raises is captured as a `Response` with the exception
+        on `metadata["error"]`, not raised — one bad target never takes down
+        a broadcast to the others. Raises `WakenError` if no targets are
+        registered at all (the one case this method does raise).
+        """
+        if not self._targets:
+            raise WakenError("broadcast() has no registered targets")
+
+        async def call(name: str) -> tuple[str, Response]:
+            event = Event(
+                source="api", target=name, payload={"prompt": prompt, **payload}
+            )
+            try:
+                response = await self.dispatch(event)
+            except Exception as error:
+                response = Response(metadata={"error": str(error)})
+            return name, response
+
+        results = await asyncio.gather(*(call(name) for name in self._targets))
+        return dict(results)
 
     def on(self, event_name: str, subscriber: Subscriber) -> None:
         """Subscribe `subscriber` to `event_name` (see `emit()`)."""
