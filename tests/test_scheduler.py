@@ -2,13 +2,15 @@
 
 import asyncio
 import contextlib
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from waken import Runtime
-from waken.scheduler import _next_cron_fire
+from waken.persistence import Job
+from waken.scheduler import _compute_next_fire_at, _next_cron_fire
 
 
 @pytest.fixture(autouse=True)
@@ -120,6 +122,24 @@ async def test_at_in_the_future_fires_when_due() -> None:
     assert calls == [1]
 
 
+async def test_at_with_a_naive_datetime_string_is_treated_as_utc() -> None:
+    """`datetime.fromisoformat()` on a string with no offset yields a naive
+    datetime; `at()` must attach UTC rather than leaving it uncomparable."""
+    calls: list[int] = []
+    when = (datetime.now(UTC) - timedelta(hours=1)).replace(tzinfo=None).isoformat()
+    assert "+" not in when  # sanity check: genuinely naive, no UTC offset
+
+    runtime = Runtime()
+
+    @runtime.at(when)
+    async def once() -> None:
+        calls.append(1)
+
+    await run_briefly(runtime, 0.02)
+
+    assert calls == [1]
+
+
 def test_cron_computes_correct_next_fire_time() -> None:
     start = datetime(2026, 7, 4, 8, 0, tzinfo=UTC)
 
@@ -140,6 +160,40 @@ def test_cron_decorator_persists_job_with_computed_next_fire(tmp_path: Path) -> 
     (job,) = runtime._db.pending_jobs()
     assert job.kind == "cron"
     assert job.next_fire_at.hour == 9
+
+
+def test_compute_next_fire_at_reschedules_a_cron_job() -> None:
+    """The branch `_fire_when_due` takes after a *recurring* cron job fires —
+    not exercised by the decorator tests above, which never let a job
+    actually fire (cron's minimum granularity is a minute, too slow here)."""
+    job = Job(
+        job_id="x",
+        kind="cron",
+        spec=json.dumps({"expression": "0 9 * * *"}),
+        target_module="m",
+        target_qualname="q",
+        next_fire_at=datetime(2026, 1, 1, tzinfo=UTC),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+
+    next_fire = _compute_next_fire_at(job)
+
+    assert next_fire > datetime.now(UTC)
+
+
+def test_compute_next_fire_at_rejects_a_non_recurring_kind() -> None:
+    job = Job(
+        job_id="x",
+        kind="after",
+        spec="{}",
+        target_module="m",
+        target_qualname="q",
+        next_fire_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+    )
+
+    with pytest.raises(ValueError, match="do not recur"):
+        _compute_next_fire_at(job)
 
 
 async def test_every_job_survives_restart(tmp_path: Path) -> None:

@@ -20,7 +20,7 @@ import pytest
 from click.testing import CliRunner
 
 from waken import Event, Response, Runtime, target_fn
-from waken.cli import main
+from waken.cli import _base_url, main
 from waken.plugins.sources.http import HTTPSource
 
 
@@ -180,3 +180,33 @@ def test_send_with_no_server_running_gives_a_clean_error() -> None:
 
     assert result.exit_code != 0
     assert "could not reach" in result.output
+
+
+def test_run_command_executes_the_script_as_main(tmp_path: Path) -> None:
+    script = tmp_path / "script.py"
+    script.write_text("print(f'hello from {__name__}')\n")
+
+    result = CliRunner().invoke(main, ["run", str(script)])
+
+    assert result.exit_code == 0
+    assert "hello from __main__" in result.output
+
+
+def test_base_url_prefers_explicit_host_and_port() -> None:
+    assert _base_url("example.com", 9999) == "http://example.com:9999"
+    assert _base_url("example.com", None) == "http://example.com:8080"
+    assert _base_url(None, 9999) == "http://127.0.0.1:9999"
+
+
+def test_base_url_falls_back_to_waken_url_env_var(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WAKEN_URL", "http://example.com:7777")
+    assert _base_url(None, None) == "http://example.com:7777"
+
+
+def test_base_url_falls_back_to_localhost_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("WAKEN_URL", raising=False)
+    assert _base_url(None, None) == "http://localhost:8080"

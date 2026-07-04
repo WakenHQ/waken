@@ -319,3 +319,4 @@ class Runtime:
                 loop.remove_signal_handler(sig)
             for source in reversed(list(self._sources.values())):
                 await source.stop()
+            self._db.close()
