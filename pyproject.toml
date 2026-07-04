@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jgalego/waken"
+Homepage = "https://github.com/waken-dev/waken"
 
 [project.scripts]
 waken = "waken.cli:main"

@@ -1,4 +1,16 @@
+<div align="center">
+
 # Waken
+
+[![CI](https://github.com/waken-dev/waken/actions/workflows/ci.yml/badge.svg)](https://github.com/waken-dev/waken/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![mypy: strict](https://img.shields.io/badge/mypy-strict-2f81f7)](https://mypy-lang.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&pause=1200&color=6E7681&center=true&vCenter=true&width=600&lines=nginx+for+AI+agents;Source+%E2%86%92+Runtime+%E2%86%92+Target+%E2%86%92+Output;small.+elegant.+composable.)](docs/api-spec.md)
+
+</div>
 
 A lightweight runtime that routes work from a Source, to an interchangeable
 AI-agent Target, back through an Output.
@@ -109,7 +121,7 @@ on them.
 ## Development
 
 ```bash
-git clone https://github.com/jgalego/waken
+git clone https://github.com/waken-dev/waken
 cd waken
 pip install -e ".[dev]"
 pytest
@@ -117,4 +129,4 @@ pytest
 
 ## License
 
-MIT
+[MIT](LICENSE)
