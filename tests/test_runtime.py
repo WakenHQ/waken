@@ -1,4 +1,9 @@
-"""M2: Runtime registration and routing (in-memory)."""
+"""M2: Runtime registration and routing (in-memory).
+
+Since M3, plain `Runtime()` creates `.waken/waken.db` in the CWD by default
+(see docs/api-spec.md §3), so every test here runs inside an isolated
+temp directory to avoid touching the real developer's filesystem.
+"""
 
 import asyncio
 from pathlib import Path
@@ -6,6 +11,11 @@ from pathlib import Path
 import pytest
 
 from waken import Event, Response, Runtime, TargetNotFoundError, target_fn
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
 
 
 @target_fn
@@ -106,11 +116,3 @@ def test_registering_source_and_output_does_not_raise() -> None:
     runtime = Runtime()
     runtime.source("fake", _FakeSource())
     runtime.output("fake", _FakeOutput())
-
-
-async def test_no_sqlite_file_is_created_at_this_milestone(tmp_path: Path) -> None:
-    runtime = Runtime(db_path=str(tmp_path / "waken.db"))
-    runtime.target("echo", echo)
-    await runtime.send(target="echo", prompt="hi")
-
-    assert list(tmp_path.iterdir()) == []

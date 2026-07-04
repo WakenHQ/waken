@@ -6,10 +6,12 @@ See docs/api-spec.md §3.
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any
 
 from waken.events import Event
 from waken.exceptions import TargetNotFoundError
+from waken.persistence import Database
 from waken.protocols import Output, Source, Target
 from waken.responses import Response
 
@@ -17,10 +19,8 @@ from waken.responses import Response
 class Runtime:
     """Wires Sources, Targets, and Outputs together and routes Events."""
 
-    def __init__(self, db_path: str | None = None) -> None:
-        # Persistence is wired in M3; accepted now so this signature doesn't
-        # change later, but nothing reads `_db_path` yet.
-        self._db_path = db_path
+    def __init__(self, db_path: str | Path | None = None) -> None:
+        self._db = Database(db_path)
         self._targets: dict[str, Target] = {}
         self._sources: dict[str, Source] = {}
         self._outputs: dict[str, Output] = {}
@@ -36,6 +36,14 @@ class Runtime:
     def output(self, name: str, output: Output) -> None:
         """Register an `Output` under `name`."""
         self._outputs[name] = output
+
+    def session(self, source: str, external_key: str) -> str:
+        """Mint-or-return a stable `session_id` for `(source, external_key)`.
+
+        The runtime never reads or stores conversation content — only this
+        one mapping, persisted to SQLite. See docs/api-spec.md §4.
+        """
+        return self._db.get_or_create_session(source, external_key)
 
     async def dispatch(self, event: Event, *, retry: bool = False) -> Response:
         """Route `event` to its registered `Target` and return the `Response`.
