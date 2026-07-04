@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from waken.events import Event
-from waken.exceptions import TargetNotFoundError
+from waken.exceptions import OutputNotFoundError, TargetNotFoundError
 from waken.persistence import Database
+from waken.plugins.outputs.terminal import TerminalOutput
 from waken.protocols import Output, Source, Target
 from waken.responses import Response
 
@@ -23,7 +24,7 @@ class Runtime:
         self._db = Database(db_path)
         self._targets: dict[str, Target] = {}
         self._sources: dict[str, Source] = {}
-        self._outputs: dict[str, Output] = {}
+        self._outputs: dict[str, Output] = {"terminal": TerminalOutput()}
 
     def target(self, name: str, target: Target) -> None:
         """Register a `Target` under `name`."""
@@ -52,11 +53,29 @@ class Runtime:
         `retry` is accepted now so the signature is stable, but is a no-op
         until M6 adds the retry/dead-letter queue — a `Target.handle()`
         failure always propagates immediately at this milestone.
+
+        After a successful `Response`, delivery is resolved per docs/api-spec.md
+        §9: an *explicit* `event.output` that isn't registered raises
+        `OutputNotFoundError`; an *implicit* lookup by `event.source` that
+        isn't registered is skipped silently.
         """
         target = self._targets.get(event.target)
         if target is None:
             raise TargetNotFoundError(event.target)
-        return await target.handle(event)
+        response = await target.handle(event)
+        await self._deliver(event, response)
+        return response
+
+    async def _deliver(self, event: Event, response: Response) -> None:
+        if event.output is not None:
+            output = self._outputs.get(event.output)
+            if output is None:
+                raise OutputNotFoundError(event.output)
+        else:
+            output = self._outputs.get(event.source)
+            if output is None:
+                return
+        await output.deliver(event, response)
 
     async def send(self, *, target: str, prompt: str, **payload: Any) -> Response:
         """Build an `Event(source="api", ...)` from a plain prompt and dispatch it."""
