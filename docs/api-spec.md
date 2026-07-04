@@ -285,8 +285,11 @@ sugar for the common case of wanting to *choose* that bind address:
 
 ```python
 def serve(self, host="127.0.0.1", port=8080, blocking=True):
-    self.source("http", HTTPSource(host, port))   # replaces the default binding
-    return self.run() if blocking else asyncio.create_task(self.run())
+    self._sources["http"] = HTTPSource(host, port)   # replaces the default binding
+    if blocking:
+        self.run()
+        return None
+    return asyncio.get_event_loop().create_task(self._run_async())
 ```
 
 Call `serve(...)` when you care about the host/port; call plain `run()` when
@@ -300,12 +303,20 @@ event loop back to the caller.
 runtime.run()
 ```
 
-Starts every registered `Source` (calling `await source.start(runtime)` for
-each) and blocks until interrupted (`Ctrl-C` / `SIGTERM`), then calls
-`await source.stop()` on each in reverse registration order. This is the only
-method most `app.py` scripts call at the bottom of the file, and it's enough on
-its own for `waken send`/`inspect` to reach the process (see
-[§8](#8-cli)) — `serve()` is only needed to pick a non-default host/port.
+Synchronous, on purpose — like Flask's `app.run()`, this is the natural
+bottom-of-script call, and a script that does nothing else with asyncio
+shouldn't need to know `asyncio.run()` exists. It starts every registered
+`Source` (calling `await source.start(runtime)` for each) and blocks until
+interrupted (`Ctrl-C` / `SIGTERM`), then calls `await source.stop()` on each
+in reverse registration order before returning. This is the only method most
+`app.py` scripts call at the bottom of the file, and it's enough on its own
+for `waken send`/`inspect` to reach the process (see [§8](#8-cli)) —
+`serve()` is only needed to pick a non-default host/port.
+
+Code embedding a `Runtime` inside a larger asyncio application (or a test)
+that needs an *awaitable* equivalent uses the private `_run_async()` core
+`run()` wraps — not part of the public API, since nothing in this project's
+own scope needs it yet.
 
 ---
 

@@ -51,7 +51,14 @@ class Database:
     def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path) if path is not None else DEFAULT_DB_PATH
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection = sqlite3.connect(self.path)
+        # check_same_thread=False: the HTTP source's ASGI app may run on a
+        # worker thread (e.g. Starlette's TestClient uses a thread portal to
+        # bridge sync test code to the async app) distinct from whichever
+        # thread constructed the Runtime. SQLite's own serialized threading
+        # mode makes sharing one connection across threads safe as long as
+        # access isn't literally concurrent, which it never is here — every
+        # call is a single sequential statement-plus-commit.
+        self._connection = sqlite3.connect(self.path, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
         self._migrate()
 
@@ -234,3 +241,18 @@ class Database:
             )
             for row in rows
         ]
+
+    def count_jobs(self) -> int:
+        """How many rows are in the `jobs` table, for `waken inspect`."""
+        (count,) = self._connection.execute("SELECT COUNT(*) FROM jobs").fetchone()
+        return int(count)
+
+    def count_queue_entries(self, *, status: str | None = None) -> int:
+        """How many rows are in the `queue` table, for `waken inspect`."""
+        if status is None:
+            (count,) = self._connection.execute("SELECT COUNT(*) FROM queue").fetchone()
+        else:
+            (count,) = self._connection.execute(
+                "SELECT COUNT(*) FROM queue WHERE status = ?", (status,)
+            ).fetchone()
+        return int(count)

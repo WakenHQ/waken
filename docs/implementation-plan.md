@@ -251,15 +251,43 @@ reachable), `runtime.serve()` as sugar for choosing a bind address, and the
 real `waken send`/`emit`/`inspect` CLI talking over that same HTTP surface —
 per [API spec §3](api-spec.md#http) and [§8](api-spec.md#8-cli).
 
+This milestone also resolves two gaps the earlier plan text left implicit:
+
+- **`run()` becomes synchronous.** The API spec's own Quickstart calls
+  `runtime.run()` as a bare top-level statement, no `asyncio.run()` in sight —
+  matching Flask's `app.run()`. M2–M6 built `run()` as a coroutine (fine for
+  those milestones' own tests, which always awaited it directly), but that
+  contradicts the documented ergonomics once a script actually needs to call
+  it standalone. `run()` is now the sync, blocking, Flask-style entry point
+  (`asyncio.run()` wrapped internally, with signal handlers converting
+  Ctrl-C/SIGTERM into a cooperative cancellation so the `finally`-block
+  Source cleanup always runs); the awaitable core moves to a private
+  `_run_async()` that tests call directly.
+- **`emit`/`on` move here from M9.** `/emit/{event}` and `waken emit` are both
+  in this milestone's own scope, and neither means anything without
+  `runtime.emit()`/`runtime.on()` existing yet — M9 having them as a separate,
+  later milestone was an ordering mistake in the original plan. They're built
+  here instead; M9 keeps only `broadcast()` (which has no HTTP/CLI dependency
+  forcing it earlier) plus the spec-vs-implementation audit.
+
 - `waken/server.py`: Starlette ASGI app with `POST /send/{target}`,
   `POST /emit/{event}`, `POST /webhook/{name}`, `GET /inspect`
-- `HTTPSource` registered under `"http"` by `Runtime.__init__` by default
+- `waken/plugins/sources/http.py`: `HTTPSource`, wrapping uvicorn's `Server`
+  with signal handling disabled (it must never install its own
+  SIGINT/SIGTERM handlers — `run()`'s are the only ones), registered under
+  `"http"` by `Runtime.__init__` by default
 - `runtime.serve(host, port, blocking=True)`: re-registers `HTTPSource` with
-  the given address, then calls `run()` (or schedules it as a task if
-  `blocking=False`) — not a second server
+  the given address, then calls `run()` (or schedules `_run_async()` as a
+  task if `blocking=False`) — not a second server
+- `runtime.emit(event_name, payload)` / `runtime.on(event_name, subscriber)`:
+  fire-and-forget fan-out per [API spec §3](api-spec.md#events) — a `Target`
+  subscriber gets a synthesized `Event`, a plain callable gets `payload`
+  verbatim; no `Output` is ever invoked
+- `runtime.inspect() -> dict`: registered target/source/output names plus
+  job/queue counts, backing `GET /inspect`
 - `waken/cli.py`: `waken run <script>`, `waken send <target> <prompt> [--wait]
   [--host] [--port]`, `waken emit <event> <json>`, `waken inspect [--json]` — all
-  as a real HTTP client against `$WAKEN_URL` or `--host`/`--port`
+  as a real HTTP client (via `httpx`) against `$WAKEN_URL` or `--host`/`--port`
   (default `http://localhost:8080`)
 
 **Tests:**
@@ -327,16 +355,16 @@ be, and has a test.
 
 ---
 
-## M9 — `broadcast`, `emit`/`on` pub-sub sugar
+## M9 — `broadcast`
 
-**Goal:** the remaining pieces of the [API spec's](api-spec.md) surface —
-`runtime.broadcast()`, `runtime.emit()`/`runtime.on()` — per §3.
+**Goal:** the one remaining piece of the [API spec's](api-spec.md) surface —
+`runtime.broadcast()` — per §3. (`emit`/`on` moved to M7; see that
+milestone's note.)
 
 - `runtime.broadcast(**payload) -> dict[str, Response]`: fan out to all
   registered targets concurrently (`asyncio.gather`), capturing per-target
   exceptions into `Response(metadata={"error": ...})` entries rather than
   raising, as specified
-- `runtime.on(event_name, subscriber)`, `runtime.emit(event_name, payload)`
 
 **Tests:**
 - `broadcast()` with 3 registered targets, one of which raises, returns 3
@@ -344,11 +372,6 @@ be, and has a test.
   not raise.
 - `broadcast()` with zero registered targets raises (per spec: this is the one
   case it *does* raise).
-- `emit("x", payload)` with two subscribers registered via `on("x", ...)`
-  invokes both; a `Target`-typed subscriber and a plain-callable subscriber
-  both work.
-- `emit()` does not attempt output delivery (per spec §3 — internally-emitted
-  events skip the `Output` step).
 
 **Done when:** every code example in the [API spec](api-spec.md) has a
 corresponding passing test — at this point the spec and the implementation

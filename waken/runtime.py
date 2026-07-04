@@ -6,10 +6,13 @@ See docs/api-spec.md §3.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-from collections.abc import Callable
+import signal
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
+from inspect import isawaitable
 from pathlib import Path
 from typing import Any
 
@@ -18,9 +21,13 @@ from waken.events import Event
 from waken.exceptions import OutputNotFoundError, TargetNotFoundError
 from waken.persistence import Database
 from waken.plugins.outputs.terminal import TerminalOutput
+from waken.plugins.sources.http import HTTPSource
 from waken.protocols import Output, Source, Target
 from waken.responses import Response
 from waken.scheduler import Handler, Scheduler
+
+WebhookHandler = Callable[[dict[str, Any]], Awaitable[None]]
+Subscriber = Target | Callable[[Any], Any]
 
 
 class Runtime:
@@ -31,7 +38,12 @@ class Runtime:
         self._targets: dict[str, Target] = {}
         self._outputs: dict[str, Output] = {"terminal": TerminalOutput()}
         self._scheduler = Scheduler(self._db)
-        self._sources: dict[str, Source] = {"scheduler": self._scheduler}
+        self._sources: dict[str, Source] = {
+            "scheduler": self._scheduler,
+            "http": HTTPSource(),
+        }
+        self._subscribers: dict[str, list[Subscriber]] = {}
+        self._webhook_handlers: dict[str, WebhookHandler] = {}
 
     def target(self, name: str, target: Target) -> None:
         """Register a `Target` under `name`."""
@@ -187,19 +199,99 @@ class Runtime:
             )
         return asyncio.run(self.send(target=target, prompt=prompt, **payload))
 
-    async def run(self) -> None:
-        """Start every registered `Source` and block until cancelled.
+    def on(self, event_name: str, subscriber: Subscriber) -> None:
+        """Subscribe `subscriber` to `event_name` (see `emit()`)."""
+        self._subscribers.setdefault(event_name, []).append(subscriber)
 
-        Calls `await source.start(self)` for each registered Source, then
-        waits. Cancelling this coroutine (e.g. via task cancellation, or a
-        signal handler wired up by the CLI) stops every Source in reverse
-        registration order before the cancellation propagates.
+    async def emit(self, event_name: str, payload: Any) -> None:
+        """Notify every subscriber of `event_name` with `payload`.
+
+        No `Response` is expected and no `Output` is invoked — this is for
+        fire-and-forget fan-out, not routing. A `Target` subscriber receives
+        an `Event(source="internal", ...)`; a plain callable receives the
+        raw `payload` directly.
         """
+        for subscriber in self._subscribers.get(event_name, []):
+            if isinstance(subscriber, Target):
+                normalized_payload = (
+                    payload if isinstance(payload, dict) else {"payload": payload}
+                )
+                event = Event(
+                    source="internal", target=event_name, payload=normalized_payload
+                )
+                await subscriber.handle(event)
+            else:
+                result = subscriber(payload)
+                if isawaitable(result):
+                    await result
+
+    def inspect(self) -> dict[str, Any]:
+        """A snapshot of registered targets/sources/outputs and queue/job counts."""
+        return {
+            "targets": sorted(self._targets),
+            "sources": sorted(self._sources),
+            "outputs": sorted(self._outputs),
+            "jobs": self._db.count_jobs(),
+            "queue": {
+                "pending": self._db.count_queue_entries(status="pending"),
+                "dead": self._db.count_queue_entries(status="dead"),
+            },
+        }
+
+    def serve(
+        self, host: str = "127.0.0.1", port: int = 8080, blocking: bool = True
+    ) -> asyncio.Task[None] | None:
+        """Bind the HTTP source to `host`/`port`, then `run()`.
+
+        Sugar for the common case of choosing a bind address — not a second
+        server. Plain `run()` is already reachable over HTTP on the default
+        address, since `HTTPSource` is registered by default. `blocking=False`
+        returns the `asyncio.Task` and hands control of the event loop back
+        to the caller.
+        """
+        self._sources["http"] = HTTPSource(host, port)
+        if blocking:
+            self.run()
+            return None
+        return asyncio.get_event_loop().create_task(self._run_async())
+
+    def run(self) -> None:
+        """Start every registered `Source` and block until interrupted.
+
+        Synchronous, like Flask's `app.run()` — the natural bottom-of-script
+        call. Ctrl-C/SIGTERM stop every Source in reverse registration order
+        before this returns.
+        """
+        with contextlib.suppress(KeyboardInterrupt):
+            asyncio.run(self._run_async())
+
+    async def _run_async(self) -> None:
         for source in self._sources.values():
             await source.start(self)
+
+        loop = asyncio.get_running_loop()
+        current_task = asyncio.current_task()
+        registered_signals: list[signal.Signals] = []
+        if current_task is not None:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                # NotImplementedError: unsupported platform (e.g. Windows).
+                # RuntimeError/ValueError: registering signal handlers only
+                # works on the main thread of the main interpreter — raised
+                # when _run_async() runs on a background thread (embedding
+                # scenarios, tests). Either way, cancellation still works
+                # via direct task cancellation; only the OS-signal path is
+                # unavailable.
+                with contextlib.suppress(NotImplementedError, RuntimeError, ValueError):
+                    loop.add_signal_handler(sig, current_task.cancel)
+                    registered_signals.append(sig)
+
         try:
             while True:
                 await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            pass
         finally:
+            for sig in registered_signals:
+                loop.remove_signal_handler(sig)
             for source in reversed(list(self._sources.values())):
                 await source.stop()

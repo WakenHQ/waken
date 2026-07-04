@@ -16,9 +16,29 @@ def _isolated_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
 
 
+class _NullSource:
+    """Replaces the default HTTPSource so scheduler tests don't bind a real port."""
+
+    async def start(self, runtime: Runtime) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+
 async def run_briefly(runtime: Runtime, seconds: float) -> None:
-    """Run `runtime.run()` for a short window, then cancel and clean up."""
-    task = asyncio.create_task(runtime.run())
+    """Run the runtime for a short window, then cancel and clean up.
+
+    `Runtime.run()` is a synchronous, blocking `asyncio.run()` wrapper (see
+    docs/api-spec.md §3) and so can't itself be awaited from inside a
+    running test loop; `_run_async()` is the awaitable core it wraps.
+
+    These tests only care about the Scheduler, so the default HTTPSource
+    (which would otherwise try to bind a real socket on every call) is
+    swapped for a no-op stub.
+    """
+    runtime.source("http", _NullSource())
+    task = asyncio.create_task(runtime._run_async())
     await asyncio.sleep(seconds)
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
