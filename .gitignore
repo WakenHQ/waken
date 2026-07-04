@@ -12,3 +12,4 @@ dist/
 htmlcov/
 .waken/
 *.db
+uv.lock
