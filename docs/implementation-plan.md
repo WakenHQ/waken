@@ -213,10 +213,16 @@ propagating raw (as M2 left it).
 - `queue` table: `(event_id, event_json, attempt, next_attempt_at, status)`
   where `status` ∈ `pending|dead`
 - `runtime.dispatch()`'s `retry=True` path becomes real (it was a no-op through
-  M2–M5): built-in `Scheduler`, `WebhookSource`, and `FilesystemSource` all
-  call `dispatch(event, retry=True)` internally. `send()`/`send_sync()` and the
-  HTTP `/send/{target}` route keep calling `retry=False` — this milestone must
-  not change their behavior (see the M2 regression test below)
+  M2–M5): built-in `WebhookSource` and `FilesystemSource` (M8) will call
+  `dispatch(event, retry=True)` internally once they exist, since neither has
+  a synchronous caller waiting on the result. `Scheduler` is *not* in this
+  list — per M5, it calls a plain zero-argument handler (`Callable[[],
+  Awaitable[Any]]`), never constructs an `Event`, and so never goes through
+  `dispatch()` at all; if a scheduled handler wants retry semantics it calls
+  `dispatch(event, retry=True)` itself, the same as any other caller.
+  `send()`/`send_sync()` and the HTTP `/send/{target}` route keep calling
+  `retry=False` — this milestone must not change their behavior (see the M2
+  regression test below)
 - Exponential backoff: default base 1s, factor 2, cap 5 minutes, max 3 attempts
   before marking `dead`
 - `waken inspect` (stubbed until M7's CLI exists, but the underlying query

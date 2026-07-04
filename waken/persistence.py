@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 DEFAULT_DB_PATH = Path(".waken/waken.db")
 
@@ -27,6 +27,17 @@ class Job:
     target_qualname: str
     next_fire_at: datetime
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class QueueEntry:
+    """One row of the `queue` table."""
+
+    event_id: str
+    event_json: str
+    attempt: int
+    next_attempt_at: datetime
+    status: str
 
 
 class Database:
@@ -69,6 +80,17 @@ class Database:
                     target_qualname TEXT NOT NULL,
                     next_fire_at TEXT NOT NULL,
                     created_at TEXT NOT NULL
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS queue (
+                    event_id TEXT PRIMARY KEY,
+                    event_json TEXT NOT NULL,
+                    attempt INTEGER NOT NULL,
+                    next_attempt_at TEXT NOT NULL,
+                    status TEXT NOT NULL
                 )
                 """
             )
@@ -167,3 +189,48 @@ class Database:
     def delete_job(self, job_id: str) -> None:
         self._connection.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
         self._connection.commit()
+
+    def upsert_queue_entry(
+        self,
+        *,
+        event_id: str,
+        event_json: str,
+        attempt: int,
+        next_attempt_at: datetime,
+        status: str = "pending",
+    ) -> None:
+        """Insert or update the `queue` row for `event_id`."""
+        self._connection.execute(
+            """
+            INSERT INTO queue (event_id, event_json, attempt, next_attempt_at, status)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(event_id) DO UPDATE SET
+                attempt = excluded.attempt,
+                next_attempt_at = excluded.next_attempt_at,
+                status = excluded.status
+            """,
+            (event_id, event_json, attempt, next_attempt_at.isoformat(), status),
+        )
+        self._connection.commit()
+
+    def remove_queue_entry(self, event_id: str) -> None:
+        """Remove a `queue` row after its event is eventually delivered."""
+        self._connection.execute("DELETE FROM queue WHERE event_id = ?", (event_id,))
+        self._connection.commit()
+
+    def dead_letters(self) -> list[QueueEntry]:
+        """All `queue` rows with `status = 'dead'`."""
+        rows = self._connection.execute(
+            "SELECT event_id, event_json, attempt, next_attempt_at, status "
+            "FROM queue WHERE status = 'dead'"
+        ).fetchall()
+        return [
+            QueueEntry(
+                event_id=row["event_id"],
+                event_json=row["event_json"],
+                attempt=row["attempt"],
+                next_attempt_at=datetime.fromisoformat(row["next_attempt_at"]),
+                status=row["status"],
+            )
+            for row in rows
+        ]

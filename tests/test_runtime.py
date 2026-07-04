@@ -70,15 +70,6 @@ async def test_dispatch_propagates_target_failure_by_default() -> None:
         await runtime.dispatch(event)
 
 
-async def test_dispatch_retry_true_still_propagates_at_this_milestone() -> None:
-    # retry=True is a no-op until M6 adds the queue.
-    runtime = make_runtime()
-    event = Event(source="cli", target="boom", payload={})
-
-    with pytest.raises(ValueError, match="target failure"):
-        await runtime.dispatch(event, retry=True)
-
-
 async def test_send_builds_event_and_dispatches() -> None:
     runtime = make_runtime()
     response = await runtime.send(target="shout", prompt="hi")

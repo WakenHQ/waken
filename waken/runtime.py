@@ -6,10 +6,14 @@ See docs/api-spec.md §3.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
+from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from waken import router
 from waken.events import Event
 from waken.exceptions import OutputNotFoundError, TargetNotFoundError
 from waken.persistence import Database
@@ -89,21 +93,63 @@ class Runtime:
         """Route `event` to its registered `Target` and return the `Response`.
 
         Raises `TargetNotFoundError` if `event.target` isn't registered.
-        `retry` is accepted now so the signature is stable, but is a no-op
-        until M6 adds the retry/dead-letter queue — a `Target.handle()`
-        failure always propagates immediately at this milestone.
 
-        After a successful `Response`, delivery is resolved per docs/api-spec.md
-        §9: an *explicit* `event.output` that isn't registered raises
-        `OutputNotFoundError`; an *implicit* lookup by `event.source` that
-        isn't registered is skipped silently.
+        `retry=False` (the default; used by `send()`/`send_sync()` and the
+        HTTP `/send/{target}` route): a `Target.handle()` failure propagates
+        immediately.
+
+        `retry=True` (used by Sources with no synchronous caller waiting,
+        e.g. `WebhookSource`/`FilesystemSource`): a failure is persisted to
+        the `queue` table and retried with exponential backoff — base 1s,
+        factor 2, capped at 5 minutes — up to 3 attempts, then marked `dead`
+        and re-raised. See docs/api-spec.md §9.
+
+        After a successful `Response`, delivery is resolved: an *explicit*
+        `event.output` that isn't registered raises `OutputNotFoundError`;
+        an *implicit* lookup by `event.source` that isn't registered is
+        skipped silently.
         """
         target = self._targets.get(event.target)
         if target is None:
             raise TargetNotFoundError(event.target)
-        response = await target.handle(event)
-        await self._deliver(event, response)
-        return response
+
+        if not retry:
+            response = await target.handle(event)
+            await self._deliver(event, response)
+            return response
+
+        return await self._dispatch_with_retry(event, target)
+
+    async def _dispatch_with_retry(self, event: Event, target: Target) -> Response:
+        event_json = json.dumps(asdict(event))
+        attempt = 1
+        while True:
+            try:
+                response = await target.handle(event)
+            except Exception:
+                if attempt >= router.MAX_ATTEMPTS:
+                    self._db.upsert_queue_entry(
+                        event_id=event.event_id,
+                        event_json=event_json,
+                        attempt=attempt,
+                        next_attempt_at=datetime.now(UTC),
+                        status="dead",
+                    )
+                    raise
+                delay = router.compute_backoff_seconds(attempt)
+                self._db.upsert_queue_entry(
+                    event_id=event.event_id,
+                    event_json=event_json,
+                    attempt=attempt,
+                    next_attempt_at=datetime.now(UTC),
+                    status="pending",
+                )
+                await asyncio.sleep(delay)
+                attempt += 1
+            else:
+                self._db.remove_queue_entry(event.event_id)
+                await self._deliver(event, response)
+                return response
 
     async def _deliver(self, event: Event, response: Response) -> None:
         if event.output is not None:
