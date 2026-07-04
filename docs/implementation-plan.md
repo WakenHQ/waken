@@ -328,12 +328,20 @@ and [API spec §7](api-spec.md#7-writing-an-output). Building `waken-slack` as
 a worked example of that pattern is good follow-up work, but it's an adapter
 package's milestone, not core's.
 
-- `waken/plugins/sources/filesystem.py`: watches a directory (stdlib
-  `watchfiles` or a polling fallback — decide based on dependency-count
-  tradeoff at implementation time), dispatches one `Event` per new file
+- `waken/plugins/sources/filesystem.py`: watches a directory. `watchfiles`
+  (efficient OS-level file-event notification) is a third-party package,
+  not stdlib, and this milestone's whole point is zero new dependencies — so
+  this ships as a plain stdlib polling loop (`Path.iterdir()` on a timer),
+  not `watchfiles`. Revisit as an opt-in upgrade later if polling proves too
+  coarse for someone's use case; dispatches one `Event` per new file
 - `waken/plugins/sources/webhook.py`: registers a named route under
   `POST /webhook/{name}` (via the M7 server) and hands the request body to a
-  user-supplied parser callback that produces an `Event`
+  user-supplied parser callback that produces an `Event`. The route
+  acknowledges immediately and dispatches in the background
+  (`asyncio.create_task`, `retry=True`) rather than awaiting the dispatch
+  before responding — a slow retry-with-backoff sequence must never hold
+  open the webhook sender's HTTP connection (this applies equally to
+  `FilesystemSource`'s own dispatch calls, for the same reason)
 - `waken/plugins/outputs/notification.py`: desktop notification (platform
   library chosen at implementation time; must degrade to a no-op with a logged
   warning on unsupported platforms rather than crashing)

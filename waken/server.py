@@ -5,6 +5,7 @@ See docs/api-spec.md §3 (HTTP).
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
@@ -52,7 +53,10 @@ def create_app(runtime: Runtime) -> Starlette:
                 {"error": f"no webhook registered as {name!r}"}, status_code=404
             )
         body = await request.json()
-        await handler(body)
+        # Acknowledge immediately; dispatch (with its own retry/backoff) runs
+        # in the background so a slow retry sequence never holds open the
+        # webhook sender's connection.
+        asyncio.create_task(handler(body))
         return JSONResponse({"ok": True})
 
     async def inspect(request: Request) -> JSONResponse:

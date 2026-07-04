@@ -9,7 +9,7 @@ import asyncio
 import contextlib
 import json
 import signal
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import asdict
 from datetime import UTC, datetime
 from inspect import isawaitable
@@ -26,7 +26,7 @@ from waken.protocols import Output, Source, Target
 from waken.responses import Response
 from waken.scheduler import Handler, Scheduler
 
-WebhookHandler = Callable[[dict[str, Any]], Awaitable[None]]
+WebhookHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
 Subscriber = Target | Callable[[Any], Any]
 
 
