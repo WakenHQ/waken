@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.svg" width="96" height="96" alt="Waken logo">
+
 # Waken
 
 [![CI](https://github.com/waken-dev/waken/actions/workflows/ci.yml/badge.svg)](https://github.com/waken-dev/waken/actions/workflows/ci.yml)
