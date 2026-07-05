@@ -1,32 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Waken logo">
   <title>Waken</title>
   <style>
-    .wk-node { fill: #4C6FFF; }
-    .wk-line { stroke: #4C6FFF; stroke-width: 5; stroke-linecap: round; }
-    .wk-ring { stroke: #4C6FFF; fill: none; stroke-width: 2.5; }
-    .wk-ring-outer { opacity: 0.16; }
-    .wk-ring-inner { opacity: 0.30; }
+    .wk-hub { fill: #4C6FFF; }
+    .wk-spark { fill: #4C6FFF; }
+    .wk-ring { stroke: #4C6FFF; fill: none; }
     @media (prefers-color-scheme: dark) {
-      .wk-node { fill: #8FA6FF; }
-      .wk-line { stroke: #8FA6FF; }
+      .wk-hub { fill: #8FA6FF; }
+      .wk-spark { fill: #8FA6FF; }
       .wk-ring { stroke: #8FA6FF; }
     }
   </style>
 
-  <!-- wake pulse: activation rings around the hub -->
-  <circle class="wk-ring wk-ring-outer" cx="100" cy="100" r="44"/>
-  <circle class="wk-ring wk-ring-inner" cx="100" cy="100" r="33"/>
+  <!-- second, quieter pulse -->
+  <circle class="wk-ring" cx="100" cy="100" r="62" stroke-width="3" opacity="0.14"/>
 
-  <!-- routes: hub to Source / Target / Output -->
-  <line class="wk-line" x1="100" y1="100" x2="100" y2="38"/>
-  <line class="wk-line" x1="100" y1="100" x2="46" y2="131"/>
-  <line class="wk-line" x1="100" y1="100" x2="154" y2="131"/>
+  <!-- wake pulse: breaking outward, not circling in place -->
+  <g transform="rotate(-40 100 100)">
+    <circle class="wk-ring" cx="100" cy="100" r="42" stroke-width="6" stroke-dasharray="205 60"/>
+    <circle class="wk-spark" cx="160" cy="100" r="6"/>
+  </g>
 
-  <!-- endpoints -->
-  <circle class="wk-node" cx="100" cy="38" r="10"/>
-  <circle class="wk-node" cx="46" cy="131" r="10"/>
-  <circle class="wk-node" cx="154" cy="131" r="10"/>
-
-  <!-- hub: the Runtime -->
-  <circle class="wk-node" cx="100" cy="100" r="19"/>
+  <!-- hub: the Runtime, waking up -->
+  <circle class="wk-hub" cx="100" cy="100" r="18"/>
 </svg>
