@@ -36,6 +36,20 @@ pip install waken
 Zero external services — no Docker, no Redis, no Postgres. State (sessions,
 scheduled jobs, retry queue) lives in one SQLite file, created automatically.
 
+Target and channel adapters ship as separate packages (see
+[ADR 0001](https://github.com/WakenHQ/waken/blob/main/docs/adr/0001-core-architecture.md))
+so core stays dependency-free, but they can be pulled in alongside `waken`
+with extras:
+
+```bash
+pip install waken[groq]          # a single adapter
+pip install waken[groq,voice]    # several at once
+pip install waken[all]           # every adapter
+```
+
+Available extras: `claude`, `gemini`, `copilot`, `openai`, `mistral`,
+`cohere`, `groq`, `bedrock`, `ollama`, `voice`, `slack`, `telegram`.
+
 ## Quickstart
 
 ```python
@@ -114,9 +128,10 @@ waken inspect                  # targets, sources, outputs, jobs, queue depth
 
 ## Status
 
-Pre-release. The core API described above is implemented and tested; real
-Target adapters (`waken-claude`, `waken-gemini`, `waken-copilot`, ...) ship
-as separate packages and haven't been built yet — see the [ADR's
+Pre-release. The core API described above is implemented and tested.
+Target adapters (`waken-claude`, `waken-gemini`, `waken-copilot`, ...) and
+channel adapters (`waken-voice`, `waken-slack`, `waken-telegram`) ship as
+separate packages, published independently of core — see the [ADR's
 alternatives](https://github.com/WakenHQ/waken/blob/main/docs/adr/0001-core-architecture.md) for why core never depends
 on them.
 

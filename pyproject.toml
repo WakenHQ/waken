@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "waken"
-version = "0.1.1"
+version = "0.1.2"
 description = "A lightweight runtime that routes work from a Source to an interchangeable AI-agent Target and back through an Output."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -44,6 +44,35 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=5.0",
     "types-croniter>=2.0",
+]
+# Each extra below is pip metadata only: it installs the matching
+# standalone waken-<adapter> package (see docs/adr/0001-core-architecture.md).
+# `waken` itself never imports any of them.
+claude = ["waken-claude>=0.1.0"]
+gemini = ["waken-gemini>=0.1.0"]
+copilot = ["waken-copilot>=0.1.0"]
+openai = ["waken-openai>=0.1.0"]
+mistral = ["waken-mistral>=0.1.0"]
+cohere = ["waken-cohere>=0.1.0"]
+groq = ["waken-groq>=0.1.0"]
+bedrock = ["waken-bedrock>=0.1.0"]
+ollama = ["waken-ollama>=0.1.0"]
+voice = ["waken-voice>=0.2.0"]
+slack = ["waken-slack>=0.1.0"]
+telegram = ["waken-telegram>=0.1.0"]
+all = [
+    "waken-claude>=0.1.0",
+    "waken-gemini>=0.1.0",
+    "waken-copilot>=0.1.0",
+    "waken-openai>=0.1.0",
+    "waken-mistral>=0.1.0",
+    "waken-cohere>=0.1.0",
+    "waken-groq>=0.1.0",
+    "waken-bedrock>=0.1.0",
+    "waken-ollama>=0.1.0",
+    "waken-voice>=0.2.0",
+    "waken-slack>=0.1.0",
+    "waken-telegram>=0.1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
