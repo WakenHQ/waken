@@ -242,3 +242,19 @@ business being a hard dependency of the core) — not at every plugin.
 - **Declarative routing layer.** A thin YAML/TOML-to-`Runtime` loader, once the
   Python API has enough real usage to know which parts are worth making
   declarative and which aren't.
+- **Webhook signature verification.** `WebhookSource`'s `parser` callback (and
+  the `POST /webhook/{name}` route in `waken/server.py` that calls it) only
+  ever receives the parsed JSON body — no request headers, no raw body bytes.
+  This is fine for sources that don't need it, but it blocks any integration
+  that authenticates webhooks via an HMAC signature over headers + raw body
+  (Slack's classic HTTP Events API, GitHub webhooks, Stripe, and most other
+  webhook-signing providers all work this way). Found independently while
+  building both `waken-slack` and `waken-telegram`; both sidestepped it by
+  using a persistent-connection transport instead (Slack Socket Mode,
+  Telegram long polling — see [adapter-ci-setup.md](../adapter-ci-setup.md)),
+  which is a reasonable choice for those two providers but isn't available to
+  every future webhook-based Source. Fixing this for real means deciding what
+  `Parser` receives instead of a bare `dict` — headers alongside the body,
+  the raw bytes for HMAC purposes, or a small `WebhookRequest` wrapper type —
+  which is a real interface-design decision for `api-spec.md`, not a one-line
+  patch, so it isn't done here.
