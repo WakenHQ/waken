@@ -28,10 +28,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/waken-dev/waken"
-Repository = "https://github.com/waken-dev/waken"
-Issues = "https://github.com/waken-dev/waken/issues"
-Documentation = "https://github.com/waken-dev/waken/tree/main/docs"
+Homepage = "https://github.com/WakenHQ/waken"
+Repository = "https://github.com/WakenHQ/waken"
+Issues = "https://github.com/WakenHQ/waken/issues"
+Documentation = "https://github.com/WakenHQ/waken/tree/main/docs"
 
 [project.scripts]
 waken = "waken.cli:main"

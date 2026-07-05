@@ -4,7 +4,7 @@
 
 # Waken
 
-[![CI](https://github.com/waken-dev/waken/actions/workflows/ci.yml/badge.svg)](https://github.com/waken-dev/waken/actions/workflows/ci.yml)
+[![CI](https://github.com/WakenHQ/waken/actions/workflows/ci.yml/badge.svg)](https://github.com/WakenHQ/waken/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy: strict](https://img.shields.io/badge/mypy-strict-2f81f7)](https://mypy-lang.org/)
@@ -123,7 +123,7 @@ on them.
 ## Development
 
 ```bash
-git clone https://github.com/waken-dev/waken
+git clone https://github.com/WakenHQ/waken
 cd waken
 pip install -e ".[dev]"
 pytest
