@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="assets/logo.svg" width="96" height="96" alt="Waken logo">
+<img src="https://raw.githubusercontent.com/WakenHQ/waken/main/assets/logo.svg" width="96" height="96" alt="Waken logo">
 
 # Waken
 
 [![CI](https://github.com/WakenHQ/waken/actions/workflows/ci.yml/badge.svg)](https://github.com/WakenHQ/waken/actions/workflows/ci.yml)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://github.com/WakenHQ/waken/blob/main/pyproject.toml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy: strict](https://img.shields.io/badge/mypy-strict-2f81f7)](https://mypy-lang.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](https://github.com/WakenHQ/waken/blob/main/LICENSE)
 
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&pause=1200&color=6E7681&center=true&vCenter=true&width=600&lines=nginx+for+AI+agents;Source+%E2%86%92+Runtime+%E2%86%92+Target+%E2%86%92+Output;small.+elegant.+composable.)](docs/api-spec.md)
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&pause=1200&color=6E7681&center=true&vCenter=true&width=600&lines=nginx+for+AI+agents;Source+%E2%86%92+Runtime+%E2%86%92+Target+%E2%86%92+Output;small.+elegant.+composable.)](https://github.com/WakenHQ/waken/blob/main/docs/api-spec.md)
 
 </div>
 
@@ -90,7 +90,7 @@ async def hourly_summary():
 runtime.serve(port=8080)
 ```
 
-More runnable examples: [`examples/`](examples/) (scheduling, broadcasting to
+More runnable examples: [`examples/`](https://github.com/WakenHQ/waken/tree/main/examples) (scheduling, broadcasting to
 multiple targets, routing an inbound webhook).
 
 ## CLI
@@ -104,12 +104,12 @@ waken inspect                  # targets, sources, outputs, jobs, queue depth
 
 ## Documentation
 
-- [Prior art review](docs/prior-art.md) — what this fills that agent
+- [Prior art review](https://github.com/WakenHQ/waken/blob/main/docs/prior-art.md) — what this fills that agent
   frameworks, MCP/A2A, and 2026's wave of "agent gateways" don't.
-- [Architecture Decision Record](docs/adr/0001-core-architecture.md) — the
+- [Architecture Decision Record](https://github.com/WakenHQ/waken/blob/main/docs/adr/0001-core-architecture.md) — the
   design and the alternatives it rejected.
-- [Public API specification](docs/api-spec.md) — the full API, with examples.
-- [Implementation plan](docs/implementation-plan.md) — milestones, and how
+- [Public API specification](https://github.com/WakenHQ/waken/blob/main/docs/api-spec.md) — the full API, with examples.
+- [Implementation plan](https://github.com/WakenHQ/waken/blob/main/docs/implementation-plan.md) — milestones, and how
   the actual build diverged from the original plan along the way.
 
 ## Status
@@ -117,7 +117,7 @@ waken inspect                  # targets, sources, outputs, jobs, queue depth
 Pre-release. The core API described above is implemented and tested; real
 Target adapters (`waken-claude`, `waken-gemini`, `waken-copilot`, ...) ship
 as separate packages and haven't been built yet — see the [ADR's
-alternatives](docs/adr/0001-core-architecture.md) for why core never depends
+alternatives](https://github.com/WakenHQ/waken/blob/main/docs/adr/0001-core-architecture.md) for why core never depends
 on them.
 
 ## Development
@@ -131,4 +131,4 @@ pytest
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/WakenHQ/waken/blob/main/LICENSE)
